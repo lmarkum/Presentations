@@ -7,5 +7,5 @@
 3. "Query Store" contains presentations on thge usefulness of Query Store for everyday troubleshooting, configuration settings, and a custom script to perform Before/After comparisons of performance using Query Store data.
 
 
-4. "Four Focus Points In a New DBA Role" is a presetnation I gave at PASS Summit 2022 online. The focus is providing a guided plan for those first days and weeks in a new role. When you switch companies, or get promoted, and are now responsible for SQL Server, you need a plan. This presentation provides that plan.
+4. "Four Focus Points In a New DBA Role" is a presentation I gave at PASS Summit 2022 online. The focus is providing a guided plan for those first days and weeks in a new role. When you switch companies, or get promoted, and are now responsible for SQL Server, you need a plan. This presentation provides that plan.
 

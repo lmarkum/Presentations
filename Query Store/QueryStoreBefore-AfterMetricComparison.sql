@@ -37,6 +37,10 @@ Updated: August 11, 2026
 - Added conversion of DATETIME parameters to UTC for proper comparison to Query Store tables 
 - Starting to add logic for returning only the metric of interest, such as Avg CPU, Logical Reads, Logical Writes, Max Used Memory
 
+Updated November, 9, 2026
+- Updated averages to include executing weighting.
+- Updated the baseline top N so it uses whatever metric the @Metric variable uses.
+- Fixed issue with missing "after" data.
 
 Requirement: Query Store must have been enabled and in ReadWrite mode during the time periods under consideration.
 
@@ -77,12 +81,26 @@ AS (
 	SELECT TOP(@TopCount) qsq.query_hash
 		,qsq.query_id
 		,LEFT(qsqt.query_sql_text, 500) AS query_sql_text
-		,SUM(qsrs.avg_cpu_time) AS avg_cpu_time_baseline
-		,SUM(qsrs.avg_logical_io_reads) AS avg_logical_io_reads_baseline
-		,SUM(qsrs.avg_logical_io_writes) AS avg_logical_io_writes_baseline
-		,SUM(qsrs.avg_query_max_used_memory) AS avg_query_max_used_memory_baseline
-		,SUM(qsrs.count_executions) AS ExecutionCount
-	FROM sys.query_store_query qsq
+
+    ,SUM(qsrs.avg_cpu_time * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_cpu_time_baseline
+
+    ,SUM(qsrs.avg_logical_io_reads * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_logical_io_reads_baseline
+
+    ,SUM(qsrs.avg_logical_io_writes * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_logical_io_writes_baseline
+
+    ,SUM(qsrs.avg_query_max_used_memory * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_query_max_used_memory_baseline
+
+    ,SUM(qsrs.count_executions) AS ExecutionCount
+    
+    FROM sys.query_store_query qsq
 	JOIN sys.query_store_plan qspt ON qsq.query_id = qspt.query_id
 	JOIN sys.query_store_runtime_stats qsrs ON qspt.plan_id = qsrs.plan_id
 	JOIN sys.query_store_runtime_stats_interval qsrsi ON qsrs.runtime_stats_interval_id = qsrsi.runtime_stats_interval_id
@@ -92,7 +110,22 @@ AS (
 	GROUP BY qsq.query_hash
 		,qsq.query_id
 		,qsqt.query_sql_text
-	ORDER BY SUM(qsrs.avg_cpu_time) DESC
+	ORDER BY
+    CASE @Metric
+        WHEN 'AVG CPU'
+            THEN SUM(qsrs.avg_cpu_time * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        WHEN 'Logical Reads'
+            THEN SUM(qsrs.avg_logical_io_reads * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        WHEN 'Logical Writes'
+            THEN SUM(qsrs.avg_logical_io_writes * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        WHEN 'Max Used Memory'
+            THEN SUM(qsrs.avg_query_max_used_memory * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+    END DESC
+, qsq.query_id ASC
 	)
 
 ,AfterStats
@@ -100,11 +133,23 @@ AS (
 	SELECT qsq.query_hash
 		,qsq.query_id
 		,LEFT(qsqt.query_sql_text, 500) AS query_sql_text
-		,SUM(qsrs.avg_cpu_time) AS avg_cpu_time_After
-		,SUM(qsrs.avg_logical_io_reads) AS avg_logical_io_reads_After
-		,SUM(qsrs.avg_logical_io_writes) AS avg_logical_io_writes_After
-		,SUM(qsrs.avg_query_max_used_memory) AS avg_query_max_used_memory_After
-		,SUM(qsrs.count_executions) AS ExecutionCount
+    ,SUM(qsrs.avg_cpu_time * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_cpu_time_After
+
+    ,SUM(qsrs.avg_logical_io_reads * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_logical_io_reads_After
+
+    ,SUM(qsrs.avg_logical_io_writes * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_logical_io_writes_After
+
+    ,SUM(qsrs.avg_query_max_used_memory * qsrs.count_executions)
+        / NULLIF(SUM(CONVERT(float, qsrs.count_executions)), 0)
+        AS avg_query_max_used_memory_After
+
+    ,SUM(qsrs.count_executions) AS ExecutionCount
 	FROM sys.query_store_query qsq
 	JOIN sys.query_store_plan qspt ON qsq.query_id = qspt.query_id
 	JOIN sys.query_store_runtime_stats qsrs ON qspt.plan_id = qsrs.plan_id
@@ -152,33 +197,44 @@ SELECT BTQ.query_hash
 		WHEN 'Max Used Memory'
             THEN A.avg_query_max_used_memory_After
     END AS AfterMetric
-	,CASE @Metric
+    ,CASE @Metric
         WHEN 'AVG CPU'
-            THEN ISNULL(A.avg_cpu_time_After, 0)
+            THEN A.avg_cpu_time_After
                  - BTQ.avg_cpu_time_baseline
-
         WHEN 'Logical Reads'
-            THEN ISNULL(A.avg_logical_io_reads_After, 0)
+            THEN A.avg_logical_io_reads_After
                  - BTQ.avg_logical_io_reads_baseline
-		WHEN 'Logical Writes'
-            THEN ISNULL(A.avg_logical_io_writes_After, 0)
+        WHEN 'Logical Writes'
+            THEN A.avg_logical_io_writes_After
                  - BTQ.avg_logical_io_writes_baseline
-		WHEN 'Max Used Memory'
-            THEN ISNULL(A.avg_query_max_used_memory_After, 0)
+        WHEN 'Max Used Memory'
+            THEN A.avg_query_max_used_memory_After
                  - BTQ.avg_query_max_used_memory_baseline
     END AS MetricChange
-	,BTQ.avg_cpu_time_baseline
-	,A.avg_cpu_time_After
-	,(ISNULL(A.avg_cpu_time_After, 0) - BTQ.avg_cpu_time_baseline) AS cpu_change
-	,BTQ.avg_logical_io_reads_baseline
-	,A.avg_logical_io_reads_After
-	,(ISNULL(A.avg_logical_io_reads_After, 0) - BTQ.avg_logical_io_reads_baseline) AS logical_io_reads_change
-	,BTQ.avg_logical_io_writes_baseline
-	,A.avg_logical_io_writes_After
-	,(ISNULL(A.avg_logical_io_writes_After, 0) - BTQ.avg_logical_io_writes_baseline) AS logical_io_writes_change
-	,BTQ.avg_query_max_used_memory_baseline
-	,A.avg_query_max_used_memory_After
-	,(ISNULL(A.avg_query_max_used_memory_After, 0) - BTQ.avg_query_max_used_memory_baseline) AS avg_query_max_used_memory_change
+	    ,BTQ.avg_cpu_time_baseline
+    ,A.avg_cpu_time_After
+    ,A.avg_cpu_time_After
+        - BTQ.avg_cpu_time_baseline AS cpu_change
+
+    ,BTQ.avg_logical_io_reads_baseline
+    ,A.avg_logical_io_reads_After
+    ,A.avg_logical_io_reads_After
+        - BTQ.avg_logical_io_reads_baseline AS logical_io_reads_change
+
+    ,BTQ.avg_logical_io_writes_baseline
+    ,A.avg_logical_io_writes_After
+    ,A.avg_logical_io_writes_After
+        - BTQ.avg_logical_io_writes_baseline AS logical_io_writes_change
+
+    ,BTQ.avg_query_max_used_memory_baseline
+    ,A.avg_query_max_used_memory_After
+    ,A.avg_query_max_used_memory_After
+        - BTQ.avg_query_max_used_memory_baseline
+        AS avg_query_max_used_memory_change
+    ,CASE
+        WHEN A.query_id IS NULL THEN 'No after data'
+        ELSE 'Available in both periods'
+    END AS ComparisonStatus
 FROM BaselineTopQueries AS BTQ
 LEFT JOIN AfterStats A ON BTQ.query_id = A.query_id
 ORDER BY

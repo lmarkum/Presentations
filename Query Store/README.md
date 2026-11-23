@@ -1,6 +1,6 @@
 # QueryStore
 
-This repo holds queries and presentations on the topic of Query Store, as well as queries for various performance metric comparisons.
+This repo holds queries and presentations on the topic of Query Store, as well as queries for various performance metric comparisons, and other Query Store related topics.
 
 
 "QueryStoreBefore-AfterMetricComparison.sql"
@@ -29,4 +29,8 @@ configuration changes, or other modifications.
 The same approach can be applied to any performance metric stored in Query
 Store, not just CPU usage.
 
+"Various Methods For Enabling Query Store"
 
+This folder has a set of files that can be used in demos and in live environments to enable Query Store using a variety of methods. The PowerShell methods to require the DBATools module.
+
+The PowerShell file has several annotations that describe the use of the PowerShell, including the use of a text file that is a list of SQL Server instances. Additionally, there is a T-SQL script that is a cursor to enable Query Store on multiple databases.

@@ -3,7 +3,7 @@
 This repo holds queries and presentations on the topic of Query Store, as well as queries for various performance metric comparisons, and other Query Store related topics.
 
 
-"QueryStoreBefore-AfterMetricComparison.sql"
+## QueryStoreBefore-AfterMetricComparison.sql
 
 Purpose:
 These queries retrieve Query Store query_id values, query_hash values, and
@@ -29,7 +29,7 @@ configuration changes, or other modifications.
 The same approach can be applied to any performance metric stored in Query
 Store, not just CPU usage.
 
-"Various Methods For Enabling Query Store"
+## Various Methods For Enabling Query Store
 
 This folder has a set of files that can be used in demos and in live environments to enable Query Store using a variety of methods. The PowerShell methods to require the DBATools module.
 

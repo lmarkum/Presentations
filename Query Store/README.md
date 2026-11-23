@@ -1,4 +1,4 @@
-# QueryStore
+# Query Store
 
 This repo holds queries and presentations on the topic of Query Store, as well as queries for various performance metric comparisons, and other Query Store related topics.
 
